@@ -1,13 +1,12 @@
 import asyncio
 import os
 import sys
-from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 from dacite import from_dict 
 from dataclasses import asdict
-from typing import Dict
+from enum import Enum
 from loguru import logger
-from typing import Any
+from typing import Any, Dict
 
 
 from .together_web3.computer import (
