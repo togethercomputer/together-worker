@@ -5,8 +5,8 @@ description = ""
 authors = ["together <together@together.xyz>"]
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/together-computer/worker_lib"
-homepage = "https://github.com/together-computer/worker_lib"
+repository = "https://github.com/together-computer/together_worker"
+homepage = "https://github.com/together-computer/together_worker"
 keywords = [
     "NLP",
     "vision",
@@ -103,7 +103,7 @@ aggressive = 3
 [tool.pytest.ini_options]
 # https://docs.pytest.org/en/6.2.x/customize.html#pyproject-toml
 # Directories that are not visited by pytest collector:
-norecursedirs =["worker_lib", "*.egg", ".eggs", "dist", "build", "docs", ".tox", ".git", "__pycache__"]
+norecursedirs =["together_worker", "*.egg", ".eggs", "dist", "build", "docs", ".tox", ".git", "__pycache__"]
 doctest_optionflags = ["NUMBER", "NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 log_cli = true
 log_cli_level = "INFO"

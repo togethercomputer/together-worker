@@ -26,13 +26,13 @@ poetry-remove:
 install:
 	poetry lock -n && poetry export --without-hashes > requirements.txt
 	poetry install -n
-	-poetry run mypy --install-types --non-interactive worker_lib
+	-poetry run mypy --install-types --non-interactive together_worker
 
 .PHONY: install-extras
 install-extras:
 	poetry lock -n && poetry export --without-hashes > requirements.txt
 	poetry install -n --all-extras
-	-poetry run mypy --install-types --non-interactive worker_lib
+	-poetry run mypy --install-types --non-interactive together_worker
 
 .PHONY: pre-commit-install
 pre-commit-install:
@@ -42,8 +42,8 @@ pre-commit-install:
 .PHONY: codestyle
 codestyle:
 	poetry run pyupgrade --exit-zero-even-if-changed --py37-plus **/*.py
-	poetry run isort --settings-path pyproject.toml worker_lib
-	poetry run autopep8 --in-place worker_lib
+	poetry run isort --settings-path pyproject.toml together_worker
+	poetry run autopep8 --in-place together_worker
 
 .PHONY: formatting
 formatting: codestyle
@@ -56,13 +56,13 @@ test:
 
 .PHONY: check-codestyle
 check-codestyle:
-	poetry run isort --diff --check-only --settings-path pyproject.toml worker_lib
-	poetry run autopep8 --diff worker_lib
-	poetry run darglint --verbosity 2 worker_lib
+	poetry run isort --diff --check-only --settings-path pyproject.toml together_worker
+	poetry run autopep8 --diff together_worker
+	poetry run darglint --verbosity 2 together_worker
 
 .PHONY: mypy
 mypy:
-	poetry run mypy --config-file pyproject.toml worker_lib
+	poetry run mypy --config-file pyproject.toml together_worker
 
 .PHONY: check-safety
 check-safety:
