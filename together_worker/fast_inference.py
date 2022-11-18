@@ -1,30 +1,22 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import asyncio
 import logging
-import os
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from enum import Enum
 
 from dacite import from_dict
 from together_web3.computer import (
-    ImageModelInferenceResult,
     Instance,
-    Job,
-    LanguageModelInferenceChoice,
-    LanguageModelInferenceResult,
     MatchEvent,
-    RequestTypeImageModelInference,
-    RequestTypeLanguageModelInference,
     RequestTypeShutdown,
     ResourceTypeInstance,
     Result,
     ResultEnvelope,
 )
 from together_web3.coordinator import Join, JoinEnvelope
-from together_web3.together import TogetherClientOptions, TogetherWeb3
+from together_web3.together import TogetherWeb3
 
 logger = logging.getLogger(__name__)
 
