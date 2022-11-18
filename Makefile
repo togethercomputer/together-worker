@@ -105,3 +105,16 @@ build-remove:
 
 .PHONY: cleanup
 cleanup: pycache-remove dsstore-remove mypycache-remove ipynbcheckpoints-remove pytestcache-remove
+
+#* Upload to PyPI
+clean:
+	rm -rf dist
+
+build:
+	python3 -m build
+
+publish-test:
+	python3 -m twine upload --repository testpypi dist/*
+
+publish:
+	python3 -m twine upload dist/*
