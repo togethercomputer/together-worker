@@ -1,40 +1,44 @@
+from typing import Any, Dict, Optional
+
 import asyncio
+import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from dacite import from_dict 
 from dataclasses import asdict
 from enum import Enum
-from loguru import logger
-from typing import Any, Dict
 
-
-from .together_web3.computer import (
+from dacite import from_dict
+from together_web3.computer import (
+    ImageModelInferenceResult,
     Instance,
     Job,
-    ImageModelInferenceResult,
     LanguageModelInferenceChoice,
     LanguageModelInferenceResult,
     MatchEvent,
-    ResourceTypeInstance,
-    Result,
     RequestTypeImageModelInference,
     RequestTypeLanguageModelInference,
     RequestTypeShutdown,
+    ResourceTypeInstance,
+    Result,
     ResultEnvelope,
 )
-from .together_web3.coordinator import Join, JoinEnvelope
-from .together_web3.together import TogetherClientOptions, TogetherWeb3
+from together_web3.coordinator import Join, JoinEnvelope
+from together_web3.together import TogetherClientOptions, TogetherWeb3
+
+logger = logging.getLogger(__name__)
+
 
 class ServiceDomain(Enum):
     http = "http"
     together = "together"
 
+
 class FastInferenceInterface:
-    def dispatch_request(args: Dict[str, any], match_event: MatchEvent):
+    def dispatch_request(self, args: Dict[str, Any], match_event: MatchEvent) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def __init__(self, model_name: str, args=None) -> None:
+    def __init__(self, model_name: str, args: Dict[str, Any] = {}):
         self.model_name = model_name
         self.service_domain = args.get("service_domain", ServiceDomain.together)
         self.coordinator: TogetherWeb3 = args.get(
@@ -44,10 +48,9 @@ class FastInferenceInterface:
 
     def start(self):
         loop = asyncio.get_event_loop()
-        future = asyncio.Future()
         asyncio.ensure_future(self._run_together_server())
         loop.run_forever()
-    
+
     def worker(self):
         pass
 
@@ -62,7 +65,6 @@ class FastInferenceInterface:
         except Exception as e:
             logger.exception(f'_run_together_server failed: {e}')
         self._shutdown()
-        
 
     async def _join_local_coordinator(self):
         try:
@@ -88,19 +90,18 @@ class FastInferenceInterface:
                 },
             )
             args = self.coordinator.coordinator.join(
-                asdict(JoinEnvelope(join=join, signature=None)), 
+                asdict(JoinEnvelope(join=join, signature=None)),
                 await self.coordinator.get_subscription_id()
             )
 
         except Exception as e:
             logger.exception(f'_join_local_coordinator failed: {e}')
 
-
     async def together_request(self, match_event: MatchEvent, raw_event: Dict[str, Any]) -> None:
         logger.info(f"together_request {raw_event}")
         loop = asyncio.get_event_loop()
         request_json = [raw_event["match"]["service_bid"]["job"]]
-        if request_json["request_type"] == RequestTypeShutdown:
+        if request_json[0]["request_type"] == RequestTypeShutdown:
             pass
         response_json = await loop.run_in_executor(self.executor, self.dispatch_request, request_json, match_event)
         await self.send_result_back(match_event, response_json)
@@ -132,6 +133,6 @@ class FastInferenceInterface:
         logger.info("Shutting down")
 
 
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    fip = FastInferenceInterface(model_name="opt66b")
 #    fip.start()
