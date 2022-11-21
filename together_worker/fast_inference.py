@@ -1,4 +1,3 @@
-import socket
 from typing import Any, Dict, List, Union
 
 import asyncio
@@ -6,6 +5,7 @@ import ipaddress
 import logging
 import multiprocessing
 import platform
+import socket
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from enum import Enum
@@ -130,7 +130,7 @@ class FastInferenceInterface:
         raw_event = raw_event if isinstance(raw_event, list) else [raw_event]
         logger.info(f"together_request {raw_event}")
         loop = asyncio.get_event_loop()
-        request_json = [event["match"]["service_bid"]["job"] for event in match_event]
+        request_json = [event["match"]["service_bid"]["job"] for event in raw_event]
         if request_json[0]["request_type"] == RequestTypeShutdown:
             self.dispatch_shutdown()
         response_json = await loop.run_in_executor(self.executor, self.dispatch_request, request_json, match_event)
