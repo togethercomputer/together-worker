@@ -56,7 +56,7 @@ class FastInferenceInterface:
         raise NotImplementedError
 
     def dispatch_shutdown(self):
-        pass
+        self.shutdown = True
 
     def worker(self):
         pass
@@ -135,7 +135,7 @@ class FastInferenceInterface:
             self.dispatch_shutdown()
         response_json = await loop.run_in_executor(self.executor, self.dispatch_request, request_json, match_event)
         response_json = response_json if isinstance(response_json, list) else [response_json]
-        await asyncio.gather(*[self.send_result_back(match_event[i], response_json[i]) for i in range(len(match_event))])
+        await asyncio.gather(*[self.send_result_back(match_event[i], response_json[i]) for i in range(len(response_json))])
 
     async def send_result_back(self, match_event: MatchEvent, result_data: Dict[str, Any], partial: bool = False) -> None:
         try:
