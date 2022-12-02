@@ -1,10 +1,12 @@
 from typing import Any, Dict, List, Optional, Union
 
 import asyncio
+import fcntl
 import ipaddress
 import json
 import logging
 import multiprocessing
+import os
 import platform
 import socket
 import time
@@ -133,13 +135,20 @@ class FastInferenceInterface:
         self.coordinator: TogetherWeb3 = args.get(
             "coordinator") if self.service_domain == ServiceDomain.together else None
         self.http_host = args.get("http_host", "localhost")
-        self.http_port = args.get("http_port", 5001)
+        self.http_port = args.get("http_port",
+                                  5001) if self.service_domain == ServiceDomain.http else 0
+        self.request_json: List[Dict[str, Any]] = []
+        self.match_event: List[MatchEvent] = []
+        self.rank = args.get("rank", 0)
         self.workers = args.get("workers", 1)
         self.executor = ThreadPoolExecutor(max_workers=self.workers)
         self.loop = asyncio.get_event_loop()
-        self.rank = args.get("rank", 0)
-        self.tokenizer = None
         self.shutdown = False
+        self.tokenizer = None
+        self.stream_token_pipe_r: int = -1
+        self.stream_token_pipe_w: int = -1
+        self.stream_token_pipe_task: Optional[asyncio.Task[None]] = None
+        self.served = 0
 
     def start(self):
         if self.rank == 0:
@@ -173,7 +182,7 @@ class FastInferenceInterface:
                 await asyncio.sleep(1)
         except Exception as e:
             logger.exception(f'_run_http_server failed: {e}')
-        self._shutdown()
+        await self._shutdown()
 
     async def _run_together_server(self) -> None:
         self.coordinator._on_connect.append(self._join_local_coordinator)
@@ -185,7 +194,7 @@ class FastInferenceInterface:
                 await asyncio.sleep(1)
         except Exception as e:
             logger.exception(f'_run_together_server failed: {e}')
-        self._shutdown()
+        await self._shutdown()
 
     async def _join_local_coordinator(self):
         try:
@@ -207,8 +216,11 @@ class FastInferenceInterface:
         if not isinstance(request_json, list):
             request_json = [request_json]
             wrapped_request = True
+        self.request_json = request_json
         response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, request_json, None)
         response_json = response_json if isinstance(response_json, list) else [response_json]
+        self.request_json = []
+        self.served += 1
         return web.Response(
             body=json.dumps({
                 "data": response_json[0] if wrapped_request and len(response_json) > 0 else response_json
@@ -224,11 +236,15 @@ class FastInferenceInterface:
         match_event = match_event if isinstance(match_event, list) else [match_event]
         raw_event = raw_event if isinstance(raw_event, list) else [raw_event]
         logger.info(f"together_request {raw_event}")
-        request_json = [event["match"]["service_bid"]["job"] for event in raw_event]
-        if request_json[0].get("request_type") == RequestTypeShutdown:
+        self.match_event = match_event
+        self.request_json = [event["match"]["service_bid"]["job"] for event in raw_event]
+        if self.request_json[0].get("request_type") == RequestTypeShutdown:
             self.dispatch_shutdown()
-        response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, request_json, match_event)
+        response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
         response_json = response_json if isinstance(response_json, list) else [response_json]
+        self.request_json = []
+        self.match_event = []
+        self.served += 1
         await asyncio.gather(*[self.send_result_back(match_event[i], response_json[i]) for i in range(len(response_json))])
 
     async def send_result_back(self, match_event: MatchEvent, result_data: Dict[str, Any], partial: bool = False) -> None:
@@ -254,23 +270,70 @@ class FastInferenceInterface:
         except Exception as e:
             logger.error(f"send_result_back error: {e}")
 
-    def stream_token(self, match_event: List[MatchEvent], token: List[int]) -> None:
-        self.loop.call_soon_threadsafe(self.dispatch_stream_token, match_event, token)
+    # Primary token streaming implementation using call_soon_threadsafe().
+    def stream_token(self, token: List[int],
+                     match_event: Optional[List[MatchEvent]] = None) -> None:
+        self.loop.call_soon_threadsafe(
+            self._dispatch_stream_token,
+            self.served,
+            token,
+            match_event if match_event else self.match_event)
 
-    def dispatch_stream_token(self, match_event: List[MatchEvent], token: List[int]) -> None:
-        asyncio.ensure_future(self.handle_stream_token(match_event, token), loop=self.loop)
+    def _dispatch_stream_token(
+            self,
+            request_id: int,
+            token: List[int],
+            match_event: List[MatchEvent]) -> None:
+        asyncio.ensure_future(
+            self._handle_stream_token(request_id, token, match_event),
+            loop=self.loop)
 
-    async def handle_stream_token(self, match_event: List[MatchEvent], tokens: List[int]) -> None:
+    async def _handle_stream_token(self, request_id: int, tokens: List[int], match_event: List[MatchEvent]) -> None:
+        if request_id != self.served:
+            return
         token = tokens[0]
         await self.send_result_back(match_event[0], {
             "choices": [{"text": self.tokenizer.decode([token]) if self.tokenizer else f"{token}"}],
             "result_type": RequestTypeLanguageModelInference,
         }, partial=True)
 
-    def _shutdown(self) -> None:
+    # Alternative implementation of stream_token() using os.pipe().
+    def stream_token_pipe(self, token: List[int]) -> None:
+        os.write(
+            self.stream_token_pipe_w,
+            f'{json.dumps({ "id": self.served, "token": token })}\n'.encode())
+
+    # We'll pass the write file-descriptor to C++ via a torch::jit::class_() method.
+    def start_stream_token_pipe(self):
+        self.stream_token_pipe_r, self.stream_token_pipe_w = os.pipe()
+        fcntl.fcntl(self.stream_token_pipe_w, fcntl.F_SETFL, os.O_NONBLOCK)
+        self.stream_token_pipe_task = asyncio.create_task(self._handle_stream_token_pipe())
+
+    async def _handle_stream_token_pipe(self):
+        reader = asyncio.StreamReader()
+        read_protocol = asyncio.StreamReaderProtocol(reader)
+        await self.loop.connect_read_pipe(lambda: read_protocol, os.fdopen(self.stream_token_pipe_r))
+        while not reader.at_eof():
+            line = await reader.readline()
+            if not line:
+                break
+            streamed = json.loads(line)
+            asyncio.ensure_future(
+                self._handle_stream_token(streamed['id'], streamed['token'], self.match_event),
+                loop=self.loop)
+
+    async def _shutdown(self) -> None:
         logger.info("Shutting down")
-
-
-# if __name__ == "__main__":
-#    fip = FastInferenceInterface(model_name="opt66b")
-#    fip.start()
+        if self.coordinator:
+            await self.coordinator.close()
+        if self.stream_token_pipe_task:
+            self.stream_token_pipe_task.cancel()
+            await self.stream_token_pipe_task
+            self.stream_token_pipe_task = None
+        if self.stream_token_pipe_r != -1:
+            os.close(self.stream_token_pipe_r)
+            self.stream_token_pipe_r = -1
+        if self.stream_token_pipe_w != -1:
+            os.close(self.stream_token_pipe_w)
+            self.stream_token_pipe_w = -1
+        logger.info("Shutdown complete")
