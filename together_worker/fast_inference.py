@@ -149,7 +149,7 @@ class FastInferenceInterface:
         self.stream_tokens_pipe_r: int = -1
         self.stream_tokens_pipe_w: int = -1
         self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
-        if args.get('stream_tokenss_pipe'):
+        if args.get('stream_tokens_pipe'):
             self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
 
     def start(self):
@@ -158,8 +158,6 @@ class FastInferenceInterface:
                 asyncio.ensure_future(self._run_together_server())
             else:
                 asyncio.ensure_future(self._run_http_server())
-            if self.stream_tokens_pipe_r != -1:
-                self.start_stream_tokens_pipe()
             self.loop.run_forever()
         else:
             self.worker()
@@ -170,8 +168,6 @@ class FastInferenceInterface:
                 await self._run_together_server()
             else:
                 await self._run_http_server()
-            if self.stream_tokens_pipe_r != -1:
-                self.start_stream_tokens_pipe()
         else:
             self.worker()
 
@@ -194,6 +190,8 @@ class FastInferenceInterface:
         self.coordinator._on_connect.append(self._join_local_coordinator)
         self.coordinator._on_match_event.append(self.together_request)
         self.coordinator.subscribe_events("coordinator")
+        if self.stream_tokens_pipe_r != -1:
+            self.start_stream_tokens_pipe()
         logger.info("Start _run_together_server")
         try:
             while not self.shutdown:
