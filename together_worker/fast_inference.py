@@ -143,12 +143,14 @@ class FastInferenceInterface:
         self.workers = args.get("workers", 1)
         self.executor = ThreadPoolExecutor(max_workers=self.workers)
         self.loop = asyncio.get_event_loop()
+        self.served = 0
         self.shutdown = False
         self.tokenizer = None
-        self.stream_token_pipe_r: int = -1
-        self.stream_token_pipe_w: int = -1
-        self.stream_token_pipe_task: Optional[asyncio.Task[None]] = None
-        self.served = 0
+        self.stream_tokens_pipe_r: int = -1
+        self.stream_tokens_pipe_w: int = -1
+        self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
+        if args.get('stream_tokenss_pipe'):
+            self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
 
     def start(self):
         if self.rank == 0:
@@ -156,6 +158,8 @@ class FastInferenceInterface:
                 asyncio.ensure_future(self._run_together_server())
             else:
                 asyncio.ensure_future(self._run_http_server())
+            if self.stream_tokens_pipe_r != -1:
+                self.start_stream_tokens_pipe()
             self.loop.run_forever()
         else:
             self.worker()
@@ -166,6 +170,8 @@ class FastInferenceInterface:
                 await self._run_together_server()
             else:
                 await self._run_http_server()
+            if self.stream_tokens_pipe_r != -1:
+                self.start_stream_tokens_pipe()
         else:
             self.worker()
 
@@ -271,24 +277,24 @@ class FastInferenceInterface:
             logger.error(f"send_result_back error: {e}")
 
     # Primary token streaming implementation using call_soon_threadsafe().
-    def stream_token(self, token: List[int],
-                     match_event: Optional[List[MatchEvent]] = None) -> None:
+    def stream_tokens(self, token: List[int],
+                      match_event: Optional[List[MatchEvent]] = None) -> None:
         self.loop.call_soon_threadsafe(
-            self._dispatch_stream_token,
+            self._dispatch_stream_tokens,
             self.served,
             token,
             match_event if match_event else self.match_event)
 
-    def _dispatch_stream_token(
+    def _dispatch_stream_tokens(
             self,
             request_id: int,
             token: List[int],
             match_event: List[MatchEvent]) -> None:
         asyncio.ensure_future(
-            self._handle_stream_token(request_id, token, match_event),
+            self._handle_stream_tokens(request_id, token, match_event),
             loop=self.loop)
 
-    async def _handle_stream_token(self, request_id: int, tokens: List[int], match_event: List[MatchEvent]) -> None:
+    async def _handle_stream_tokens(self, request_id: int, tokens: List[int], match_event: List[MatchEvent]) -> None:
         if request_id != self.served:
             return
         token = tokens[0]
@@ -297,43 +303,42 @@ class FastInferenceInterface:
             "result_type": RequestTypeLanguageModelInference,
         }, partial=True)
 
-    # Alternative implementation of stream_token() using os.pipe().
-    def stream_token_pipe(self, token: List[int]) -> None:
+    # Alternative implementation of stream_tokens() using os.pipe().
+    def stream_tokens_pipe(self, token: List[int]) -> None:
         os.write(
-            self.stream_token_pipe_w,
+            self.stream_tokens_pipe_w,
             f'{json.dumps({ "id": self.served, "token": token })}\n'.encode())
 
     # We'll pass the write file-descriptor to C++ via a torch::jit::class_() method.
-    def start_stream_token_pipe(self):
-        self.stream_token_pipe_r, self.stream_token_pipe_w = os.pipe()
-        fcntl.fcntl(self.stream_token_pipe_w, fcntl.F_SETFL, os.O_NONBLOCK)
-        self.stream_token_pipe_task = asyncio.create_task(self._handle_stream_token_pipe())
+    def start_stream_tokens_pipe(self):
+        fcntl.fcntl(self.stream_tokens_pipe_w, fcntl.F_SETFL, os.O_NONBLOCK)
+        self.stream_tokens_pipe_task = asyncio.create_task(self._handle_stream_tokens_pipe())
 
-    async def _handle_stream_token_pipe(self):
+    async def _handle_stream_tokens_pipe(self):
         reader = asyncio.StreamReader()
         read_protocol = asyncio.StreamReaderProtocol(reader)
-        await self.loop.connect_read_pipe(lambda: read_protocol, os.fdopen(self.stream_token_pipe_r))
+        await self.loop.connect_read_pipe(lambda: read_protocol, os.fdopen(self.stream_tokens_pipe_r))
         while not reader.at_eof():
             line = await reader.readline()
             if not line:
                 break
             streamed = json.loads(line)
             asyncio.ensure_future(
-                self._handle_stream_token(streamed['id'], streamed['token'], self.match_event),
+                self._handle_stream_tokens(streamed['id'], streamed['token'], self.match_event),
                 loop=self.loop)
 
     async def _shutdown(self) -> None:
         logger.info("Shutting down")
         if self.coordinator:
             await self.coordinator.close()
-        if self.stream_token_pipe_task:
-            self.stream_token_pipe_task.cancel()
-            await self.stream_token_pipe_task
-            self.stream_token_pipe_task = None
-        if self.stream_token_pipe_r != -1:
-            os.close(self.stream_token_pipe_r)
-            self.stream_token_pipe_r = -1
-        if self.stream_token_pipe_w != -1:
-            os.close(self.stream_token_pipe_w)
-            self.stream_token_pipe_w = -1
+        if self.stream_tokens_pipe_task:
+            self.stream_tokens_pipe_task.cancel()
+            await self.stream_tokens_pipe_task
+            self.stream_tokens_pipe_task = None
+        if self.stream_tokens_pipe_r != -1:
+            os.close(self.stream_tokens_pipe_r)
+            self.stream_tokens_pipe_r = -1
+        if self.stream_tokens_pipe_w != -1:
+            os.close(self.stream_tokens_pipe_w)
+            self.stream_tokens_pipe_w = -1
         logger.info("Shutdown complete")
