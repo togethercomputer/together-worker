@@ -111,10 +111,10 @@ clean:
 	rm -rf dist
 
 build:
-	python3 -m build
+	poetry run python3 -m build
 
 publish-test:
-	python3 -m twine upload --repository testpypi dist/*
+	poetry run python3 -m twine upload --repository testpypi dist/*
 
 publish:
-	python3 -m twine upload dist/*
+	poetry run python3 -m twine upload dist/*
