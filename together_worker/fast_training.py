@@ -7,7 +7,6 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
-
 import netifaces
 from aiohttp import web
 from dacite import from_dict
@@ -24,9 +23,8 @@ from together_worker.common import get_coordinator_join_request, ServiceDomain
 
 logger = logging.getLogger(__name__)
 
-class FastInferenceInterface:
-    tokenizer: Optional[Any]
 
+class FastTrainingInterface:
     def dispatch_request(self,
                          args: List[Dict[str, Any]],
                          match_event: Optional[List[MatchEvent]]
@@ -39,7 +37,7 @@ class FastInferenceInterface:
     def worker(self):
         pass
 
-    def __init__(self, model_name: str, args: Dict[str, Any] = {}):
+    def __init__(self, model_name: str, args:Dict[str, Any] ={} ) -> None:
         args['model_name'] = model_name
         self.service_domain = args.get("service_domain", ServiceDomain.together)
         self.coordinator_join_request = get_coordinator_join_request(args)
@@ -62,7 +60,7 @@ class FastInferenceInterface:
         self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
         if args.get('stream_tokens_pipe'):
             self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
-
+    
     def start(self):
         if self.rank == 0:
             if self.service_domain == ServiceDomain.together:
