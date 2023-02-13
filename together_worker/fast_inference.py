@@ -13,7 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from enum import Enum
-
+from pynvml import nvmlInit, nvmlDeviceGetCount, nvmlDeviceGetName, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 import netifaces
 from aiohttp import web
 from dacite import from_dict
@@ -75,6 +75,16 @@ def get_worker_configuration_from_coordinator(args: Dict[str, Any]) -> Dict[str,
 
 
 def get_coordinator_join_request(args):
+    gpu_num = nvmlDeviceGetCount()
+    # assume: on a single node, all gpus are of the same type
+    if gpu_num > 0:
+        handle = nvmlDeviceGetHandleByIndex(0)
+        gpu_type = nvmlDeviceGetName(handle)
+        mem_info = nvmlDeviceGetMemoryInfo(handle)
+        gpu_mem = mem_info.total
+    else:
+        gpu_type = ""
+        gpu_mem = 0
     join = Join(
         group_name=args.get("group_name", "group1"),
         worker_name=args.get("worker_name", "worker1"),
@@ -85,9 +95,9 @@ def get_coordinator_join_request(args):
             arch=platform.machine(),
             os=platform.system(),
             cpu_num=multiprocessing.cpu_count(),
-            gpu_num=args.get("gpu_num", 0),
-            gpu_type=args.get("gpu_type", ""),
-            gpu_memory=args.get("gpu_mem", 0),
+            gpu_num=args.get("gpu_num", gpu_mem),
+            gpu_type=args.get("gpu_type", gpu_type),
+            gpu_memory=args.get("gpu_mem", gpu_mem),
             resource_type=ResourceTypeInstance,
             tags={}),
         config={
@@ -151,7 +161,12 @@ class FastInferenceInterface:
         self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
         if args.get('stream_tokens_pipe'):
             self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
-
+        self.nvidia_enabled = False
+        try:
+            nvmlInit()
+            self.nvidia_enabled = True
+        except Exception as e:
+            logger.info(f"nvidia-smi not available: {e}")
     def start(self):
         if self.rank == 0:
             if self.service_domain == ServiceDomain.together:
@@ -244,8 +259,11 @@ class FastInferenceInterface:
         self.request_json = [event["match"]["service_bid"]["job"] for event in raw_event]
         if self.request_json[0].get("request_type") == RequestTypeShutdown:
             self.dispatch_shutdown()
-        response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
-        response_json = response_json if isinstance(response_json, list) else [response_json]
+        try:
+            response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
+            response_json = response_json if isinstance(response_json, list) else [response_json]
+        except Exception as e:
+            response_json = {"error": str(e), "failed": True}
         self.request_json = []
         self.match_event = []
         self.served += 1
