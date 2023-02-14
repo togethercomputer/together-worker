@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "together_worker"
-version = "0.1.3"
+version = "0.1.7"
 description = ""
 authors = ["together <together@together.xyz>"]
 readme = "README.md"
@@ -24,7 +24,6 @@ keywords = [
 python = "^3.7.2,<3.11"
 dacite = "^1.6.0"
 together-web3 = "^0.1.0"
-influxdb-client = "^1.34.0"
 pynvml = "^11.4.1"
 netifaces = "^0.11.0"
 aiohttp = "^3.8.3"
