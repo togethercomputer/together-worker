@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "together_worker"
-version = "0.1.7"
+version = "0.1.9"
 description = ""
 authors = ["together <together@together.xyz>"]
 readme = "README.md"

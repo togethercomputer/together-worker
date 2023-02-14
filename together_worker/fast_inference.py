@@ -140,6 +140,12 @@ class FastInferenceInterface:
 
     def __init__(self, model_name: str, args: Dict[str, Any] = {}):
         args['model_name'] = model_name
+        self.nvidia_enabled = False
+        try:
+            nvmlInit()
+            self.nvidia_enabled = True
+        except Exception as e:
+            logger.info(f"nvidia-smi not available: {e}")
         self.service_domain = args.get("service_domain", ServiceDomain.together)
         self.coordinator_join_request = get_coordinator_join_request(args)
         self.coordinator: TogetherWeb3 = args.get(
@@ -161,12 +167,7 @@ class FastInferenceInterface:
         self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
         if args.get('stream_tokens_pipe'):
             self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
-        self.nvidia_enabled = False
-        try:
-            nvmlInit()
-            self.nvidia_enabled = True
-        except Exception as e:
-            logger.info(f"nvidia-smi not available: {e}")
+        
     def start(self):
         if self.rank == 0:
             if self.service_domain == ServiceDomain.together:
