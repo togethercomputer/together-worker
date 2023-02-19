@@ -13,16 +13,17 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from enum import Enum
-from pynvml import (
-    nvmlInit, 
-    nvmlDeviceGetCount, 
-    nvmlDeviceGetName, 
-    nvmlDeviceGetHandleByIndex, 
-    nvmlDeviceGetMemoryInfo
-)
+
 import netifaces
 from aiohttp import web
 from dacite import from_dict
+from pynvml import (
+    nvmlDeviceGetCount,
+    nvmlDeviceGetHandleByIndex,
+    nvmlDeviceGetMemoryInfo,
+    nvmlDeviceGetName,
+    nvmlInit,
+)
 from together_web3.computer import (
     Instance,
     MatchEvent,
@@ -173,7 +174,7 @@ class FastInferenceInterface:
         self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
         if args.get('stream_tokens_pipe'):
             self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
-        
+
     def start(self):
         if self.rank == 0:
             if self.service_domain == ServiceDomain.together:
@@ -268,7 +269,8 @@ class FastInferenceInterface:
             self.dispatch_shutdown()
         try:
             response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
-            response_json = response_json if isinstance(response_json, list) else [response_json]
+            response_json = response_json if isinstance(
+                response_json, list) else [response_json]
         except Exception as e:
             response_json = {"error": str(e), "failed": True}
         self.request_json = []
@@ -301,8 +303,8 @@ class FastInferenceInterface:
             if not partial and not reentered:
                 await self.send_result_back(match_event, {"error": str(e), "failed": True}, False, True)
 
-
     # Primary token streaming implementation using call_soon_threadsafe().
+
     def stream_tokens(self, token: List[int],
                       match_event: Optional[List[MatchEvent]] = None) -> None:
         self.loop.call_soon_threadsafe(
