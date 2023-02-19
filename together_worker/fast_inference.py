@@ -13,7 +13,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from enum import Enum
-from pynvml import nvmlInit, nvmlDeviceGetCount, nvmlDeviceGetName, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
+from pynvml import (
+    nvmlInit, 
+    nvmlDeviceGetCount, 
+    nvmlDeviceGetName, 
+    nvmlDeviceGetHandleByIndex, 
+    nvmlDeviceGetMemoryInfo
+)
 import netifaces
 from aiohttp import web
 from dacite import from_dict
