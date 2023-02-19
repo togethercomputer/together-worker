@@ -276,7 +276,7 @@ class FastInferenceInterface:
         self.served += 1
         await asyncio.gather(*[self.send_result_back(match_event[i], response_json[i]) for i in range(len(response_json))])
 
-    async def send_result_back(self, match_event: MatchEvent, result_data: Dict[str, Any], partial: bool = False) -> None:
+    async def send_result_back(self, match_event: MatchEvent, result_data: Dict[str, Any], partial: bool = False, reentered: bool = False) -> None:
         try:
             # logger.info(f"send_result_back {result_data}")
             result = {
@@ -298,6 +298,9 @@ class FastInferenceInterface:
             ))
         except Exception as e:
             logger.error(f"send_result_back error: {e}")
+            if not partial and not reentered:
+                await self.send_result_back(match_event, {"error": str(e), "failed": True}, False, True)
+
 
     # Primary token streaming implementation using call_soon_threadsafe().
     def stream_tokens(self, token: List[int],
