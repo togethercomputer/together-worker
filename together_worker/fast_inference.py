@@ -17,6 +17,13 @@ from enum import Enum
 import netifaces
 from aiohttp import web
 from dacite import from_dict
+from pynvml import (
+    nvmlDeviceGetCount,
+    nvmlDeviceGetHandleByIndex,
+    nvmlDeviceGetMemoryInfo,
+    nvmlDeviceGetName,
+    nvmlInit,
+)
 from together_web3.computer import (
     Instance,
     MatchEvent,
@@ -75,6 +82,16 @@ def get_worker_configuration_from_coordinator(args: Dict[str, Any]) -> Dict[str,
 
 
 def get_coordinator_join_request(args):
+    gpu_num = nvmlDeviceGetCount()
+    # assume: on a single node, all gpus are of the same type
+    if gpu_num > 0:
+        handle = nvmlDeviceGetHandleByIndex(0)
+        gpu_type = nvmlDeviceGetName(handle)
+        mem_info = nvmlDeviceGetMemoryInfo(handle)
+        gpu_mem = mem_info.total
+    else:
+        gpu_type = ""
+        gpu_mem = 0
     join = Join(
         group_name=args.get("group_name", "group1"),
         worker_name=args.get("worker_name", "worker1"),
@@ -85,9 +102,9 @@ def get_coordinator_join_request(args):
             arch=platform.machine(),
             os=platform.system(),
             cpu_num=multiprocessing.cpu_count(),
-            gpu_num=args.get("gpu_num", 0),
-            gpu_type=args.get("gpu_type", ""),
-            gpu_memory=args.get("gpu_mem", 0),
+            gpu_num=args.get("gpu_num", gpu_mem),
+            gpu_type=args.get("gpu_type", gpu_type),
+            gpu_memory=args.get("gpu_mem", gpu_mem),
             resource_type=ResourceTypeInstance,
             tags={}),
         config={
@@ -130,6 +147,12 @@ class FastInferenceInterface:
 
     def __init__(self, model_name: str, args: Dict[str, Any] = {}):
         args['model_name'] = model_name
+        self.nvidia_enabled = False
+        try:
+            nvmlInit()
+            self.nvidia_enabled = True
+        except Exception as e:
+            logger.info(f"nvidia-smi not available: {e}")
         self.service_domain = args.get("service_domain", ServiceDomain.together)
         self.coordinator_join_request = get_coordinator_join_request(args)
         self.coordinator: TogetherWeb3 = args.get(
@@ -244,14 +267,18 @@ class FastInferenceInterface:
         self.request_json = [event["match"]["service_bid"]["job"] for event in raw_event]
         if self.request_json[0].get("request_type") == RequestTypeShutdown:
             self.dispatch_shutdown()
-        response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
-        response_json = response_json if isinstance(response_json, list) else [response_json]
+        try:
+            response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
+            response_json = response_json if isinstance(
+                response_json, list) else [response_json]
+        except Exception as e:
+            response_json = {"error": str(e), "failed": True}
         self.request_json = []
         self.match_event = []
         self.served += 1
         await asyncio.gather(*[self.send_result_back(match_event[i], response_json[i]) for i in range(len(response_json))])
 
-    async def send_result_back(self, match_event: MatchEvent, result_data: Dict[str, Any], partial: bool = False) -> None:
+    async def send_result_back(self, match_event: MatchEvent, result_data: Dict[str, Any], partial: bool = False, reentered: bool = False) -> None:
         try:
             # logger.info(f"send_result_back {result_data}")
             result = {
@@ -273,8 +300,11 @@ class FastInferenceInterface:
             ))
         except Exception as e:
             logger.error(f"send_result_back error: {e}")
+            if not partial and not reentered:
+                await self.send_result_back(match_event, {"error": str(e), "failed": True}, False, True)
 
     # Primary token streaming implementation using call_soon_threadsafe().
+
     def stream_tokens(self, token: List[int],
                       match_event: Optional[List[MatchEvent]] = None) -> None:
         self.loop.call_soon_threadsafe(
