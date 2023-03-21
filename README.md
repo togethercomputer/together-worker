@@ -1,5 +1,11 @@
 # together_worker
 
+## Setup dev
+
+```console
+make install
+```
+
 ## Publish to PyPi
 
 GitHub repo > Releases > Draft a new Release > Choose a tag > Create new tag on publish >
