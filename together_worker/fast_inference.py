@@ -27,7 +27,8 @@ from together_web3.computer import (
 )
 from together_web3.coordinator import JoinEnvelope
 from together_web3.together import TogetherWeb3
-from together_worker.common import get_coordinator_join_request, ServiceDomain
+
+from together_worker.common import ServiceDomain, get_coordinator_join_request
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ class FastInferenceInterface:
             response_json = response_json if isinstance(
                 response_json, list) else [response_json]
         except Exception as e:
-            response_json = {"error": str(e), "failed": True}
+            response_json = [{"error": str(e), "failed": True}]
         self.request_json = []
         self.match_event = []
         self.served += 1

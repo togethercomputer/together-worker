@@ -10,15 +10,12 @@ from dataclasses import asdict
 from enum import Enum
 
 import netifaces
-from together_web3.computer import (
-    Instance,
-    ResourceTypeInstance,
-)
+from together_web3.computer import Instance, ResourceTypeInstance
 from together_web3.coordinator import Join, JoinEnvelope
 from together_web3.together import TogetherWeb3
 
-
 logger = logging.getLogger(__name__)
+
 
 def get_host_ip():
     try:
