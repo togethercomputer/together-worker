@@ -60,6 +60,16 @@ def get_worker_configuration_from_coordinator(args: Dict[str, Any]) -> Dict[str,
 
 
 def get_coordinator_join_request(args):
+    gpu_num = nvmlDeviceGetCount()
+    # assume: on a single node, all gpus are of the same type
+    if gpu_num > 0:
+        handle = nvmlDeviceGetHandleByIndex(0)
+        gpu_type = nvmlDeviceGetName(handle)
+        mem_info = nvmlDeviceGetMemoryInfo(handle)
+        gpu_mem = mem_info.total
+    else:
+        gpu_type = ""
+        gpu_mem = 0
     join = Join(
         group_name=args.get("group_name", "group1"),
         worker_name=args.get("worker_name", "worker1"),
@@ -70,9 +80,9 @@ def get_coordinator_join_request(args):
             arch=platform.machine(),
             os=platform.system(),
             cpu_num=multiprocessing.cpu_count(),
-            gpu_num=args.get("gpu_num", 0),
-            gpu_type=args.get("gpu_type", ""),
-            gpu_memory=args.get("gpu_mem", 0),
+            gpu_num=args.get("gpu_num", gpu_mem),
+            gpu_type=args.get("gpu_type", gpu_type),
+            gpu_memory=args.get("gpu_mem", gpu_mem),
             resource_type=ResourceTypeInstance,
             tags={}),
         config={
@@ -96,3 +106,4 @@ def parse_request_prompts(request_json: List[Dict[str, Any]]) -> List[str]:
 class ServiceDomain(Enum):
     http = "http"
     together = "together"
+
