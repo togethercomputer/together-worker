@@ -10,6 +10,12 @@ from dataclasses import asdict
 from enum import Enum
 
 import netifaces
+from pynvml import (
+    nvmlDeviceGetCount,
+    nvmlDeviceGetHandleByIndex,
+    nvmlDeviceGetMemoryInfo,
+    nvmlDeviceGetName,
+)
 from together_web3.computer import Instance, ResourceTypeInstance
 from together_web3.coordinator import Join, JoinEnvelope
 from together_web3.together import TogetherWeb3
@@ -38,7 +44,8 @@ def get_non_loopback_ipv4_addresses():
 
 # Sends coordinator_join over HTTP and returns configuration (e.g.
 # dist_url for pytorch.distributed master)
-def get_worker_configuration_from_coordinator(args: Dict[str, Any]) -> Dict[str, Any]:
+def get_worker_configuration_from_coordinator(
+        args: Dict[str, Any], nvidia_enabled: bool) -> Dict[str, Any]:
     coordinator: TogetherWeb3 = args["coordinator"]
     i = 0
     while True:
@@ -46,7 +53,7 @@ def get_worker_configuration_from_coordinator(args: Dict[str, Any]) -> Dict[str,
         if i > 1:
             time.sleep(2)
         try:
-            join = get_coordinator_join_request(args)
+            join = get_coordinator_join_request(args, nvidia_enabled)
             coordinator_args = coordinator.coordinator.join(
                 asdict(JoinEnvelope(join=join, signature=None)),
             )
@@ -59,8 +66,8 @@ def get_worker_configuration_from_coordinator(args: Dict[str, Any]) -> Dict[str,
             logger.exception(f'get_worker_configuration_from_coordinator failed: {e}')
 
 
-def get_coordinator_join_request(args):
-    gpu_num = nvmlDeviceGetCount()
+def get_coordinator_join_request(args, nvidia_enabled):
+    gpu_num = nvmlDeviceGetCount() if nvidia_enabled else 0
     # assume: on a single node, all gpus are of the same type
     if gpu_num > 0:
         handle = nvmlDeviceGetHandleByIndex(0)
@@ -106,4 +113,3 @@ def parse_request_prompts(request_json: List[Dict[str, Any]]) -> List[str]:
 class ServiceDomain(Enum):
     http = "http"
     together = "together"
-

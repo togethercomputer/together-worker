@@ -11,13 +11,7 @@ from dataclasses import asdict
 import netifaces
 from aiohttp import web
 from dacite import from_dict
-from pynvml import (
-    nvmlDeviceGetCount,
-    nvmlDeviceGetHandleByIndex,
-    nvmlDeviceGetMemoryInfo,
-    nvmlDeviceGetName,
-    nvmlInit,
-)
+from pynvml import nvmlInit
 from together_web3.computer import (
     MatchEvent,
     RequestTypeLanguageModelInference,
@@ -57,7 +51,7 @@ class FastInferenceInterface:
         except Exception as e:
             logger.info(f"nvidia-smi not available: {e}")
         self.service_domain = args.get("service_domain", ServiceDomain.together)
-        self.coordinator_join_request = get_coordinator_join_request(args)
+        self.coordinator_join_request = get_coordinator_join_request(args, self.nvidia_enabled)
         self.coordinator: TogetherWeb3 = args.get(
             "coordinator") if self.service_domain == ServiceDomain.together else None
         self.http_host = args.get("http_host", "localhost")
