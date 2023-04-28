@@ -173,9 +173,9 @@ class FastTrainingInterface:
                 result=from_dict(
                     data_class=Result,
                     data=result,
-                    version=1,
                 ),
                 signature=None,
+                version=1,
             ))
         except Exception as e:
             logger.error(f"send_result_back error: {e}")
