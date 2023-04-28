@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "together_worker"
-version = "0.1.12"
+version = "0.1.13"
 description = ""
 authors = ["together <together@together.xyz>"]
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/together-computer/together_worker"
-homepage = "https://github.com/together-computer/together_worker"
+repository = "https://github.com/together-computer/together-worker"
+homepage = "https://github.com/together-computer/together-worker"
 keywords = [
     "NLP",
     "vision",

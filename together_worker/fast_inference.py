@@ -126,7 +126,8 @@ class FastInferenceInterface:
                 asdict(
                     JoinEnvelope(
                         join=self.coordinator_join_request,
-                        signature=None)),
+                        signature=None,
+                        version=1)),
                 await self.coordinator.get_subscription_id()
             )
             logger.info('_join_local_coordinator: %s', args)
