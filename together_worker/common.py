@@ -55,7 +55,7 @@ def get_worker_configuration_from_coordinator(
         try:
             join = get_coordinator_join_request(args, nvidia_enabled)
             coordinator_args = coordinator.coordinator.join(
-                asdict(JoinEnvelope(join=join, signature=None)),
+                asdict(JoinEnvelope(join=join, signature=None, version=1)),
             )
             logger.info(f"Joining {join.group_name} on coordinator "
                         + f"{coordinator.http_url} as {join.worker_name}: %s", coordinator_args)

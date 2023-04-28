@@ -50,7 +50,8 @@ class FastInferenceInterface:
             self.nvidia_enabled = True
         except Exception as e:
             logger.info(f"nvidia-smi not available: {e}")
-        self.service_domain = args.get("service_domain", ServiceDomain.together)
+        service_domain = args.get("service_domain")
+        self.service_domain = ServiceDomain.http if service_domain == ServiceDomain.http or service_domain == ServiceDomain.http.value else ServiceDomain.together
         self.coordinator_join_request = get_coordinator_join_request(args, self.nvidia_enabled)
         self.coordinator: TogetherWeb3 = args.get(
             "coordinator") if self.service_domain == ServiceDomain.together else None
@@ -193,6 +194,7 @@ class FastInferenceInterface:
                 result=from_dict(
                     data_class=Result,
                     data=result,
+                    version=1,
                 ),
                 signature=None,
             ))
