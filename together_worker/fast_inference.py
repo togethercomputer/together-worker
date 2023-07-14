@@ -227,9 +227,14 @@ class FastInferenceInterface:
             return
         token = tokens[0]
         await self.send_result_back(match_event[0], {
-            "choices": [{"text": self.tokenizer.decode([token]) if self.tokenizer else f"{token}"}],
+            "choices": [{"text": self._decode(tokenizer, [token]) if self.tokenizer else f"{token}"}],
             "result_type": RequestTypeLanguageModelInference,
         }, partial=True)
+
+    def _decode(self, tokenizer: Any, token: List[int]) -> str:
+        input_ids = self.tokenizer.convert_tokens_to_ids(['a']) + list(input_ids)
+        text = self.tokenizer.decode(input_ids)[1:]
+        return text
 
     # Alternative implementation of stream_tokens() using os.pipe().
     def stream_tokens_pipe(self, token: List[int]) -> None:
