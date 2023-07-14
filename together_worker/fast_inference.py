@@ -227,12 +227,12 @@ class FastInferenceInterface:
             return
         token = tokens[0]
         await self.send_result_back(match_event[0], {
-            "choices": [{"text": self._decode(tokenizer, [token]) if self.tokenizer else f"{token}"}],
+            "choices": [{"text": self._decode([token]) if self.tokenizer else f"{token}"}],
             "result_type": RequestTypeLanguageModelInference,
         }, partial=True)
 
-    def _decode(self, tokenizer: Any, token: List[int]) -> str:
-        input_ids = self.tokenizer.convert_tokens_to_ids(['a']) + list(input_ids)
+    def _decode(self, token: List[int]) -> str:
+        input_ids = self.tokenizer.convert_tokens_to_ids(['a']) + token
         text = self.tokenizer.decode(input_ids)[1:]
         return text
 
