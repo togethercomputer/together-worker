@@ -148,11 +148,13 @@ class FastInferenceInterface:
         self.request_json = []
         self.served += 1
         return web.Response(
-            body=json.dumps({
-                "data": response_json[0] if wrapped_request and len(response_json) > 0 else response_json
-            }, default=lambda x: x.__dict__),
+            body=json.dumps(
+                response_json[0] if wrapped_request and len(response_json) > 0 else response_json,
+                default=lambda x: x.__dict__),
             content_type='application/json',
-            status=response_json[0].get("status", 200))
+            status=response_json[0].get(
+                "status",
+                200))
 
     async def together_request(
         self,
