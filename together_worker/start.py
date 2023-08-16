@@ -7,21 +7,24 @@ import os
 from together_web3.together import TogetherClientOptions, TogetherWeb3
 
 
-def start_worker(setup_parser=None, setup_worker=None) -> None:
+def start_worker(worker_class=None, setup_parser=None, setup_worker=None) -> None:
     parser = argparse.ArgumentParser(
         description="Together Worker Python Library",
         prog="together-worker",
     )
-    parser.add_argument(
-        "module",
-        type=str,
-        help="The module to load. E.g. examples.predict"
-    )
-    parser.add_argument(
-        "name",
-        type=str,
-        help="Class name"
-    )
+
+    if not worker_class:
+        parser.add_argument(
+            "module",
+            type=str,
+            help="The module to load. E.g. examples.predict"
+        )
+        parser.add_argument(
+            "name",
+            type=str,
+            help="Class name"
+        )
+
     parser.add_argument(
         "--log",
         default="DEBUG",
@@ -43,8 +46,10 @@ def start_worker(setup_parser=None, setup_worker=None) -> None:
 
     args = parser.parse_args()
     logging.basicConfig(level=args.log)
-    my_module = importlib.import_module(args.module)
-    my_class = getattr(my_module, args.name)
+
+    if not worker_class:
+        worker_module = importlib.import_module(args.module)
+        worker_class = getattr(worker_module, args.name)
 
     try:
         torch = importlib.import_module("torch")
@@ -89,5 +94,5 @@ def start_worker(setup_parser=None, setup_worker=None) -> None:
     if setup_worker:
         setup_worker(args, worker_args)
 
-    worker = my_class(model_name=args.together_model_name, args=worker_args)
+    worker = worker_class(model_name=args.together_model_name, args=worker_args)
     worker.start()
