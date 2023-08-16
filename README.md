@@ -1,4 +1,36 @@
-# together_worker
+# together-worker
+
+## Example
+
+```console
+cat examples/echo.py
+```
+
+```python
+from together_worker.fast_inference import FastInferenceInterface
+
+class Echo(FastInferenceInterface):
+    def setup(self, args):
+        self.message = " to you too."
+
+    def dispatch_request(self, args, env):
+        prompt = args[0]["prompt"]
+        return {
+            "choices": [ { "text": prompt + self.message } ],
+        }
+```
+
+### Test with local REST server
+
+```console
+pip install --upgrade together-worker
+together-worker examples.echo Echo
+```
+
+```console
+curl -X POST http://127.0.0.1:5001/ -d '{ "prompt": "test123" }'
+{"choices": [{"text": "test123 to you too."}]}
+```
 
 ## Setup dev
 

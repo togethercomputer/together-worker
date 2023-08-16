@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "together_worker"
-version = "0.1.20"
+version = "0.1.21"
 description = ""
 authors = ["together <together@together.xyz>"]
 readme = "README.md"
@@ -125,3 +125,7 @@ branch = true
 [coverage.report]
 fail_under = 50
 show_missing = true
+
+[project.scripts]
+together = "together_worker.cli:main"
+

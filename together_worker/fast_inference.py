@@ -36,10 +36,26 @@ class FastInferenceInterface:
                          ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         raise NotImplementedError
 
+    def dispatch_request_checked(self,
+                                 args: List[Dict[str, Any]],
+                                 match_event: Optional[List[MatchEvent]]
+                                 ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        try:
+            return self.dispatch_request(args, match_event)
+        except Exception as e:
+            logging.exception(e)
+            return {
+                "result_type": "error",
+                "value": str(e),
+            }
+
     def dispatch_shutdown(self):
         self.shutdown = True
 
     def worker(self):
+        pass
+
+    def setup(self, args: Dict[str, Any]):
         pass
 
     def __init__(self, model_name: str, args: Dict[str, Any] = {}):
@@ -72,6 +88,7 @@ class FastInferenceInterface:
         self.stream_tokens_pipe_task: Optional[asyncio.Task[None]] = None
         if args.get('stream_tokens_pipe'):
             self.stream_tokens_pipe_r, self.stream_tokens_pipe_w = os.pipe()
+        self.setup(args)
 
     def start(self):
         if self.rank == 0:
@@ -143,7 +160,7 @@ class FastInferenceInterface:
             request_json = [request_json]
             wrapped_request = True
         self.request_json = request_json
-        response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, request_json, None)
+        response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request_checked, request_json, None)
         response_json = response_json if isinstance(response_json, list) else [response_json]
         self.request_json = []
         self.served += 1
@@ -169,7 +186,7 @@ class FastInferenceInterface:
         if self.request_json[0].get("request_type") == RequestTypeShutdown:
             self.dispatch_shutdown()
         try:
-            response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request, self.request_json, match_event)
+            response_json = await self.loop.run_in_executor(self.executor, self.dispatch_request_checked, self.request_json, match_event)
             response_json = response_json if isinstance(
                 response_json, list) else [response_json]
         except Exception as e:
