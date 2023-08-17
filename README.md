@@ -24,7 +24,7 @@ class Echo(FastInferenceInterface):
 
 ```console
 pip install --upgrade together-worker
-together-worker examples.echo Echo
+python -m together_worker.cli examples.echo Echo
 ```
 
 ```console

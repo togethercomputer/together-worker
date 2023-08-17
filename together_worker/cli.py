@@ -1,4 +1,4 @@
-from start import start_worker
+from .start import start_worker
 
 
 def setup_parser(parser):
