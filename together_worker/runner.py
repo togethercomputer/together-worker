@@ -7,7 +7,7 @@ import os
 from together_web3.together import TogetherClientOptions, TogetherWeb3
 
 
-def start_worker(worker_class=None, setup_parser=None, setup_worker=None) -> None:
+def run_worker(worker_class=None, setup_parser=None, setup_worker=None) -> None:
     parser = argparse.ArgumentParser(
         description="Together Worker Python Library",
         prog="together-worker",
@@ -38,8 +38,29 @@ def start_worker(worker_class=None, setup_parser=None, setup_worker=None) -> Non
         type=str,
         default=os.environ.get(
             'SERVICE',
-            'my-service'),
+            ''),
         help='worker name for together coordinator.')
+    parser.add_argument(
+        '--hf_model_name',
+        type=str,
+        default='',
+        help='hugging face model name (used to load config).')
+    parser.add_argument('--model_path', type=str, default=None,
+                        help='hugging face model path (used to load config).')
+    parser.add_argument('--service-domain', type=str, default=os.environ.get("SERVICE_DOMAIN", "http"),
+                        help='device.')
+    parser.add_argument('--http-host', type=str, default=os.environ.get("HTTP_HOST"),
+                        help='http host.')
+    parser.add_argument('--http-port', type=str, default=int(os.environ.get("HTTP_PORT", "5001")),
+                        help='http host.')
+    parser.add_argument('--worker_name', type=str, default=os.environ.get('WORKER', 'worker1'),
+                        help='worker name for together coordinator.')
+    parser.add_argument('--group_name', type=str, default=os.environ.get('GROUP', 'group1'),
+                        help='group name for together coordinator.')
+    parser.add_argument('--device', type=str, default=os.environ.get("DEVICE", "cuda"),
+                        help='device.')
+    parser.add_argument('--auth-token', type=str, default=os.environ.get("AUTH_TOKEN"),
+                        help='Used for private repos.')
 
     if setup_parser:
         setup_parser(parser)
@@ -66,29 +87,20 @@ def start_worker(worker_class=None, setup_parser=None, setup_worker=None) -> Non
     )
 
     worker_args = {
-        "auth_token": os.environ.get("AUTH_TOKEN"),
+        "auth_token": args.auth_token,
         "coordinator": coordinator,
-        "device": os.environ.get(
-            "DEVICE",
-            "cuda"),
-        "http_host": os.environ.get("HTTP_HOST"),
-        "http_port": int(
-            os.environ.get(
-                "HTTP_PORT",
-                "5001")),
+        "device": args.device,
+        "hf_model_name": args.hf_model_name,
+        "http_host": args.http_host,
+        "http_port": args.http_port,
         "gpu_num": 1 if torch and torch.cuda.is_available() else 0,
         "gpu_type": torch.cuda.get_device_name() if torch and torch.cuda.is_available() else None,
         "gpu_mem": torch.cuda.get_device_properties(
             torch.cuda.current_device()).total_memory if torch and torch.cuda.is_available() else None,
-        "group_name": os.environ.get(
-            "GROUP",
-            "group1"),
-        "service_domain": os.environ.get(
-            "SERVICE_DOMAIN",
-            "http"),
-        "worker_name": os.environ.get(
-            "WORKER",
-            "worker1"),
+        "group_name": args.group_name,
+        "model_path": args.model_path,
+        "service_domain": args.service_domain,
+        "worker_name": args.worker_name,
     }
 
     if setup_worker:

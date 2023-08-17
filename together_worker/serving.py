@@ -1,4 +1,4 @@
-from .start import start_worker
+from .runner import run_worker
 
 
 def setup_parser(parser):
@@ -10,7 +10,8 @@ def setup_worker(args, worker_args):
 
 
 def main():
-    start_worker()
+    # run_worker(setup_parser=setup_parser, setup_worker=setup_worker)
+    run_worker()
 
 
 if __name__ == "__main__":
