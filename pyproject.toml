@@ -29,7 +29,7 @@ netifaces = "^0.11.0"
 aiohttp = "^3.8.3"
 
 [tool.poetry.dev-dependencies]
-bandit = "^1.7.4"
+bandit = "^1.7.5"
 darglint = "^1.8.1"
 isort = {extras = ["colors"], version = "^5.10.1"}
 mypy = "^0.971"
